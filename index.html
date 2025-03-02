@@ -40,17 +40,6 @@
             margin-top: 20px;
             cursor: pointer;
         }
-        select:focus {
-            outline: none;
-            border-color: #00D1B2;
-        }
-        .info p, .tp-sl-info p {
-            margin: 10px 0;
-        }
-        #last-updated {
-            font-style: italic;
-            color: #bbb;
-        }
         #price-chart {
             margin-top: 40px;
             height: 500px;
@@ -76,20 +65,18 @@
 <body> 
     <div class="container"> 
         <h1>Scalping</h1> 
-        <div> 
-            <label for="pair-selector" style="color: #bbb;">Sélectionner la paire :</label> 
-            <select id="pair-selector"> 
-                <option value="XRPUSDT">XRP/USDT</option> 
-                <option value="BTCUSDT">BTC/USDT</option> 
-                <option value="ETHUSDT">ETH/USDT</option> 
-                <option value="ADAUSDT">ADA/USDT</option> 
-                <option value="SOLUSDT">SOL/USDT</option> 
-            </select> 
-        </div> 
+        <label for="pair-selector" style="color: #bbb;">Sélectionner la paire :</label> 
+        <select id="pair-selector"> 
+            <option value="XRPUSDT">XRP/USDT</option> 
+            <option value="BTCUSDT">BTC/USDT</option> 
+            <option value="ETHUSDT">ETH/USDT</option> 
+            <option value="ADAUSDT">ADA/USDT</option> 
+            <option value="SOLUSDT">SOL/USDT</option> 
+        </select> 
 
         <div class="info"> 
             <p>Paire actuelle : <span id="pair">XRP/USDT</span></p> 
-            <p>Prix actuel de <span id="pair-display">XRP/USDT</span> : <span id="price">Chargement...</span></p> 
+            <p>Prix actuel : <span id="price">Chargement...</span></p> 
             <p>Signal : <span id="signal">Aucun signal</span></p> 
             <p>Potentiel : <span id="potentiel">Incalculé</span></p> 
         </div> 
@@ -112,7 +99,7 @@
         <p>Scalping automatisé - Données en temps réel de Binance</p> 
         <p class="disclaimer">
             Avertissement : Ce site ne fournit pas de conseils en investissement. Le trading comporte des risques et peut entraîner des pertes importantes. 
-            Assurez-vous de bien comprendre les risques avant d'investir. L'utilisation de ces informations se fait à vos propres risques.
+            Assurez-vous de bien comprendre les risques avant d'investir.
         </p>
     </div> 
 
@@ -124,15 +111,14 @@
 
         async function fetchPriceAndIndicators() {
             try {
-                const apiUrl = `https://api.binance.com/api/v3/klines?symbol=${selectedPair}&interval=1m&limit=100`;
-                const response = await fetch(apiUrl);
+                const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${selectedPair}&interval=1m&limit=100`);
                 const data = await response.json();
                 const prices = data.map(d => parseFloat(d[4]));
                 const times = data.map(d => new Date(d[0]));
 
                 const lastPrice = prices[prices.length - 1];
                 document.getElementById('price').textContent = lastPrice.toFixed(4);
-                document.getElementById('pair-display').textContent = selectedPair;
+                document.getElementById('pair').textContent = selectedPair.replace('USDT', '/USDT');
 
                 const emaShort = calculateEMA(prices, 9);
                 const emaLong = calculateEMA(prices, 21);
@@ -145,7 +131,6 @@
 
                 document.getElementById('last-updated').textContent = `Dernière actualisation : ${new Date().toLocaleTimeString()}`;
                 updateChart(times, prices);
-
             } catch (error) {
                 console.error('Erreur lors de la récupération des données', error);
                 document.getElementById('price').textContent = 'Erreur';
@@ -159,6 +144,11 @@
                 ema = (prices[i] - ema) * k + ema;
             }
             return ema;
+        }
+
+        function calculatePotentiel(emaShort, emaLong) {
+            const difference = Math.abs(emaShort - emaLong);
+            return difference > 0.5 ? 'Fort' : difference > 0.2 ? 'Moyen' : 'Faible';
         }
 
         function calculateTpSl(price, signal) {
@@ -178,18 +168,26 @@
             document.getElementById('sl').textContent = sl.toFixed(4);
         }
 
-        function calculatePotentiel(emaShort, emaLong) {
-            const difference = Math.abs(emaShort - emaLong);
-            return difference > 0.5 ? 'Fort' : difference > 0.2 ? 'Moyen' : 'Faible';
-        }
-
         function updateChart(times, prices) {
             const ctx = document.getElementById('chart').getContext('2d');
             if (!chart) {
                 chart = new Chart(ctx, {
                     type: 'line',
-                    data: { labels: times, datasets: [{ data: prices, borderColor: 'rgba(0, 209, 178, 1)', borderWidth: 2, fill: false, pointRadius: 0 }] },
-                    options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time', time: { unit: 'minute' } }, y: { beginAtZero: false } } }
+                    data: { labels: times, datasets: [{ data: prices, borderColor: 'rgba(0, 209, 178, 1)', borderWidth: 2, fill: false }] },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: { unit: 'minute', displayFormats: { minute: 'HH:mm' } },
+                                title: { display: true, text: 'Heure' }
+                            },
+                            y: {
+                                title: { display: true, text: 'Prix (USDT)' }
+                            }
+                        }
+                    }
                 });
             } else {
                 chart.data.labels = times;
@@ -208,7 +206,7 @@
     </script> 
 
 
-</body></html>ector').addEventListener('change', (e) => {
+</body></html>html>ector').addEventListener('change', (e) => {
             selectedPair = e.target.value;
             document.getElementById('pair').textContent = selectedPair;
             fetchPriceAndIndicators();
