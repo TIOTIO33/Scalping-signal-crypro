@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scalping</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script> <!-- Adapter pour les dates -->
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #181818; /* Fond sombre pour un style trading */
+            color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #00D1B2; /* Couleur principale pour le titre */
+            margin-bottom: 40px;
+        }
+        .info {
+            background-color: #282828; /* Fond des infos */
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .tp-sl-info {
+            background-color: #282828;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        select {
+            background-color: #222;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 8px;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+        select:focus {
+            outline: none;
+            border-color: #00D1B2;
+        }
+        .info p, .tp-sl-info p {
+            margin: 10px 0;
+        }
+        #last-updated {
+            font-style: italic;
+            color: #bbb;
+        }
+        #price-chart {
+            margin-top: 40px;
+            height: 500px; /* Plus grand pour un graphique visible */
+            background-color: #222;
+            border-radius: 10px;
+        }
+        .pair-name {
+            font-weight: bold;
+            font-size: 20px;
+            color: #fff;
+        }
+        .signal {
+            font-weight: bold;
+            font-size: 18px;
+            color: #00D1B2;
+        }
+        .value {
+            font-weight: bold;
+            font-size: 18px;
+            color: #fff;
+        }
+        .potentiel {
+            font-weight: bold;
+            font-size: 18px;
+            color: #FFDD57; /* Couleur pour le potentiel */
+        }
+        .footer {
+            text-align: center;
+            color: #bbb;
+            font-size: 14px;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Scalping</h1>
+
+        <!-- Sélecteur de paire -->
+        <div>
+            <label for="pair-selector" style="color: #bbb;">Sélectionner la paire :</label>
+            <select id="pair-selector">
+                <option value="XRPUSDT">XRP/USDT</option>
+                <option value="BTCUSDT">BTC/USDT</option>
+                <option value="ETHUSDT">ETH/USDT</option>
+                <option value="ADAUSDT">ADA/USDT</option>
+                <option value="SOLUSDT">SOL/USDT</option>
+            </select>
+        </div>
+
+        <div class="info">
+            <p class="pair-name">Paire actuelle : <span id="pair">XRP/USDT</span></p>
+            <p>Prix actuel de <span id="pair-display">XRP/USDT</span> : <span id="price">Chargement...</span></p>
+            <p class="signal">Signal : <span id="signal">Aucun signal</span></p>
+            <p class="potentiel">Potentiel : <span id="potentiel">Incalculé</span></p> <!-- Ajout du potentiel -->
+        </div>
+
+        <div class="tp-sl-info">
+            <p>Take Profit (TP) : <span id="tp" class="value">Calcul en cours...</span></p>
+            <p>Stop Loss (SL) : <span id="sl" class="value">Calcul en cours...</span></p>
+        </div>
+
+        <div id="last-updated">Dernière actualisation : Chargement...</div>
+
+        <!-- Graphique -->
+        <div id="price-chart">
+            <canvas id="chart"></canvas>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Scalping automatisé - Données en temps réel de Binance</p>
+    </div>
+
+    <script>
+        let selectedPair = 'XRPUSDT';
+        const tpPercentage = 0.3;  // 0.3% de TP
+        const slPercentage = 1;    // 1% de SL
+        let chart;
+
+        // Fonction pour récupérer les données de l'API Binance
+        async function fetchPriceAndIndicators() {
+            try {
+                const apiUrl = `https://api.binance.com/api/v3/klines?symbol=${selectedPair}&interval=1m&limit=100`;
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+                const prices = data.map(d => parseFloat(d[4]));  // Close prices
+                const times = data.map(d => new Date(d[0])); // Convertir les timestamps en objets Date
+
+                const lastPrice = prices[prices.length - 1];
+                document.getElementById('price').textContent = lastPrice.toFixed(4);
+                document.getElementById('pair-display').textContent = selectedPair;
+
+                const emaShort = calculateEMA(prices, 9);
+                const emaLong = calculateEMA(prices, 21);
+
+                let signal = '';
+                if (emaShort > emaLong) {
+                    signal = 'ACHETER';
+                } else if (emaShort < emaLong) {
+                    signal = 'VENDRE';
+                } else {
+                    signal = 'AUCUN SIGNAL';
+                }
+                document.getElementById('signal').textContent = signal;
+
+                const potentiel = calculatePotentiel(emaShort, emaLong);
+                document.getElementById('potentiel').textContent = potentiel;
+
+                calculateTpSl(lastPrice, signal);
+
+                // Mettre à jour la date et l'heure de la dernière actualisation
+                const currentTime = new Date();
+                document.getElementById('last-updated').textContent = `Dernière actualisation : ${currentTime.toLocaleTimeString()}`;
+
+                // Mettre à jour le graphique
+                updateChart(times, prices);
+
+            } catch (error) {
+                console.error('Erreur lors de la récupération des données', error);
+                document.getElementById('price').textContent = 'Erreur';
+            }
+        }
+
+        // Calcul de l'EMA (Exponential Moving Average)
+        function calculateEMA(prices, period) {
+            const k = 2 / (period + 1);
+            let ema = prices.slice(0, period).reduce((acc, price) => acc + price, 0) / period;
+            for (let i = period; i < prices.length; i++) {
+                ema = (prices[i] - ema) * k + ema;
+            }
+            return ema;
+        }
+
+        // Calculer les niveaux TP et SL en tenant compte du prix actuel
+        function calculateTpSl(price, signal) {
+            const tpMovement = price * (tpPercentage / 100);  // Mouvement en prix pour TP
+            const slMovement = price * (slPercentage / 100);  // Mouvement en prix pour SL
+
+            let tp, sl;
+
+            if (signal === 'ACHETER') {
+                tp = price + tpMovement;  // 0.3% de gain pour TP
+                sl = price - slMovement;  // 1% de perte pour SL
+            } else if (signal === 'VENDRE') {
+                tp = price - tpMovement;  // 0.3% de gain pour TP
+                sl = price + slMovement;  // 1% de perte pour SL
+            }
+
+            document.getElementById('tp').textContent = tp.toFixed(4);
+            document.getElementById('sl').textContent = sl.toFixed(4);
+        }
+
+        // Calculer le potentiel du signal en fonction de l'écart entre EMA courte et longue
+        function calculatePotentiel(emaShort, emaLong) {
+            const difference = Math.abs(emaShort - emaLong);
+
+            if (difference > 0.5) {
+                return 'Fort';
+            } else if (difference > 0.2) {
+                return 'Moyen';
+            } else {
+                return 'Faible';
+            }
+        }
+
+        // Mettre à jour le graphique en temps réel
+        function updateChart(times, prices) {
+            const chartData = {
+                labels: times,
+                datasets: [{
+                    label: selectedPair,
+                    data: prices,
+                    borderColor: 'rgba(0, 209, 178, 1)', // Couleur de la courbe
+                    borderWidth: 2,
+                    fill: false,
+                    pointRadius: 0
+                }]
+            };
+
+            if (!chart) {
+                const ctx = document.getElementById('chart').getContext('2d');
+                chart = new Chart(ctx, {
+                    type: 'line', // Graphique linéaire
+                    data: chartData,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: {
+                                    unit: 'minute', // Unité en minute
+                                    tooltipFormat: 'll HH:mm', // Format de l'info-bulle
+                                    displayFormats: {
+                                        minute: 'HH:mm', // Format horaire en 24h
+                                    },
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Temps'
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Prix (USDT)'
+                                },
+                                ticks: {
+                                    beginAtZero: false
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                chart.data.labels = times;
+                chart.data.datasets[0].data = prices;
+                chart.update();
+            }
+        }
+
+        // Mettre à jour la paire sélectionnée
+        document.getElementById('pair-selector').addEventListener('change', (e) => {
+            selectedPair = e.target.value;
+            document.getElementById('pair').textContent = selectedPair;
+            fetchPriceAndIndicators();
+        });
+
+        setInterval(fetchPriceAndIndicators, 60000);  // Actualisation toutes les 60 secondes
+        fetchPriceAndIndicators(); // Appel initial pour obtenir les données immédiatement
+
+    </script>
+
+</body></html>
