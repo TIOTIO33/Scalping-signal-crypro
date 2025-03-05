@@ -1,18 +1,12 @@
 <!doctype html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scalping XRP</title>
+    <title>Scalping</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
-    <script>
-        (adsbygoogle = window.adsbygoogle || []).push({
-            google_ad_client: "pub-9671433613114123",
-            enable_page_level_ads: true
-        });
-    </script>
     <style>
         body {
             font-family: 'Roboto', sans-serif;
@@ -34,7 +28,8 @@
             margin-bottom: 40px;
         }
 
-        .info, .tp-sl-info {
+        .info,
+        .tp-sl-info {
             background-color: #282828;
             border-radius: 8px;
             padding: 20px;
@@ -74,191 +69,154 @@
             text-align: center;
             margin-top: 20px;
         }
-
-        .ads {
-            margin: 20px 0;
-            text-align: center;
-        }
-
-        .adsbygoogle {
-            display: block;
-            text-align: center;
-        }
     </style>
 </head>
+
 <body>
-<div class="container">
-    <h1>Scalping XRP</h1>
+    <div class="container">
+        <h1>Scalping</h1>
+        <label for="pair-selector" style="color: #bbb;">Sélectionner la paire :</label>
+        <select id="pair-selector">
+            <option value="XRPUSDT">XRP/USDT</option>
+            <option value="BTCUSDT">BTC/USDT</option>
+            <option value="ETHUSDT">ETH/USDT</option>
+            <option value="ADAUSDT">ADA/USDT</option>
+            <option value="SOLUSDT">SOL/USDT</option>
+        </select>
 
-    <label for="pair-selector" style="color: #bbb;">Sélectionner la paire :</label>
-    <select id="pair-selector">
-        <option value="XRPUSDT">XRP/USDT</option>
-        <option value="BTCUSDT">BTC/USDT</option>
-        <option value="ETHUSDT">ETH/USDT</option>
-        <option value="ADAUSDT">ADA/USDT</option>
-        <option value="SOLUSDT">SOL/USDT</option>
-    </select>
+        <div class="info">
+            <p>Paire actuelle : <span id="pair">XRP/USDT</span></p>
+            <p>Prix actuel : <span id="price">Chargement...</span></p>
+            <p>Signal : <span id="signal">Aucun signal</span></p>
+            <p>Potentiel : <span id="potentiel">Incalculé</span></p>
+        </div>
 
-    <div class="info">
-        <p>Paire actuelle : <span id="pair">XRP/USDT</span></p>
-        <p>Prix actuel : <span id="price">Chargement...</span></p>
-        <p>Signal : <span id="signal">Aucun signal</span></p>
-        <p>Potentiel : <span id="potentiel">Incalculé</span></p>
+        <div class="tp-sl-info">
+            <p>Take Profit (TP) : <span id="tp">Calcul en cours...</span></p>
+            <p>Stop Loss (SL) : <span id="sl">Calcul en cours...</span></p>
+        </div>
+
+        <div id="last-updated">
+            Dernière actualisation : Chargement...
+        </div>
+
+        <div id="price-chart">
+            <canvas id="chart"></canvas>
+        </div>
     </div>
 
-    <div class="tp-sl-info">
-        <p>Take Profit (TP) : <span id="tp">Calcul en cours...</span></p>
-        <p>Stop Loss (SL) : <span id="sl">Calcul en cours...</span></p>
+    <div class="footer">
+        <p>Scalping automatisé - Données en temps réel de Binance</p>
+        <p class="disclaimer">
+            Avertissement : Ce site ne fournit pas de conseils en investissement. Le trading comporte des risques et
+            peut entraîner des pertes importantes.
+            Assurez-vous de bien comprendre les risques avant d'investir.
+        </p>
     </div>
 
-    <div id="last-updated">
-        Dernière actualisation : Chargement...
-    </div>
+    <script>
+        let selectedPair = 'XRPUSDT';
+        const tpPercentage = 0.3;
+        const slPercentage = 1;
+        let chart;
 
-    <div id="price-chart">
-        <canvas id="chart"></canvas>
-    </div>
+        async function fetchPriceAndIndicators() {
+            try {
+                const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${selectedPair}&interval=1m&limit=100`);
+                const data = await response.json();
+                const prices = data.map(d => parseFloat(d[4]));
+                const times = data.map(d => new Date(d[0]));
 
-    <!-- Publicité Google AdSense -->
-    <div class="ads">
-        <ins class="adsbygoogle" style="display:block" data-ad-client="pub-9671433613114123" data-ad-slot="1234567890" data-ad-format="auto"></ins>
-        <script>
-            (adsbygoogle = window.adsbygoogle || []).push({});
-        </script>
-    </div>
+                const lastPrice = prices[prices.length - 1];
+                document.getElementById('price').textContent = lastPrice.toFixed(4);
+                document.getElementById('pair').textContent = selectedPair.replace('USDT', '/USDT');
 
-</div>
+                const emaShort = calculateEMA(prices, 9);
+                const emaLong = calculateEMA(prices, 21);
 
-<div class="footer">
-    Scalping Automatisé XRP - Données en temps réel
-    <p class="disclaimer">Avertissement : Le trading comporte des risques. Aucun conseil en investissement n'est fourni.</p>
-</div>
+                let signal = emaShort > emaLong ? 'ACHETER' : emaShort < emaLong ? 'VENDRE' : 'AUCUN SIGNAL';
+                document.getElementById('signal').textContent = signal;
 
-<script>
-    let selectedPair = 'XRPUSDT';
-    const tpPercentage = 0.3;
-    const slPercentage = 1;
-    let chart;
+                document.getElementById('potentiel').textContent = calculatePotentiel(emaShort, emaLong);
+                calculateTpSl(lastPrice, signal);
 
-    async function fetchPriceAndIndicators() {
-        try {
-            const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${selectedPair}&interval=1m&limit=100`);
-            const data = await response.json();
-            const prices = data.map(d => parseFloat(d[4]));
-            const times = data.map(d => new Date(d[0]));
-
-            const lastPrice = prices[prices.length - 1];
-            document.getElementById('price').textContent = lastPrice.toFixed(4);
-            document.getElementById('pair').textContent = selectedPair.replace('USDT', '/USDT');
-
-            const emaShort = calculateEMA(prices, 9);
-            const emaLong = calculateEMA(prices, 21);
-
-            let signal = emaShort > emaLong ? 'ACHETER' : emaShort < emaLong ? 'VENDRE' : 'AUCUN SIGNAL';
-            document.getElementById('signal').textContent = signal;
-
-            document.getElementById('potentiel').textContent = calculatePotentiel(emaShort, emaLong);
-            calculateTpSl(lastPrice, signal);
-
-            document.getElementById('last-updated').textContent = `Dernière actualisation : ${new Date().toLocaleTimeString()}`;
-            updateChart(times, prices);
-        } catch (error) {
-            console.error('Erreur lors de la récupération des données', error);
-            document.getElementById('price').textContent = 'Erreur';
-        }
-    }
-
-    function calculateEMA(prices, period) {
-        const k = 2 / (period + 1);
-        let ema = prices.slice(0, period).reduce((acc, price) => acc + price, 0) / period;
-        for (let i = period; i < prices.length; i++) {
-            ema = (prices[i] - ema) * k + ema;
-        }
-        return ema;
-    }
-
-    function calculatePotentiel(emaShort, emaLong) {
-        const difference = Math.abs(emaShort - emaLong);
-        return difference > 0.5 ? 'Fort' : difference > 0.2 ? 'Moyen' : 'Faible';
-    }
-
-    function calculateTpSl(price, signal) {
-        const tpMovement = price * (tpPercentage / 100);
-        const slMovement = price * (slPercentage / 100);
-        let tp, sl;
-
-        if (signal === 'ACHETER') {
-            tp = price + tpMovement;
-            sl = price - slMovement;
-        } else if (signal === 'VENDRE') {
-            tp = price - tpMovement;
-            sl = price + slMovement;
+                document.getElementById('last-updated').textContent = `Dernière actualisation : ${new Date().toLocaleTimeString()}`;
+                updateChart(times, prices);
+            } catch (error) {
+                console.error('Erreur lors de la récupération des données', error);
+                document.getElementById('price').textContent = 'Erreur';
+            }
         }
 
-        document.getElementById('tp').textContent = tp.toFixed(4);
-        document.getElementById('sl').textContent = sl.toFixed(4);
-    }
+        function calculateEMA(prices, period) {
+            const k = 2 / (period + 1);
+            let ema = prices.slice(0, period).reduce((acc, price) => acc + price, 0) / period;
+            for (let i = period; i < prices.length; i++) {
+                ema = (prices[i] - ema) * k + ema;
+            }
+            return ema;
+        }
 
-    function updateChart(times, prices) {
-        const ctx = document.getElementById('chart').getContext('2d');
-        if (!chart) {
-            chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: times,
-                    datasets: [{
-                        data: prices,
-                        borderColor: 'rgba(0, 209, 178, 1)',
-                        borderWidth: 2,
-                        fill: false
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            type: 'time',
-                            time: {
-                                unit: 'minute',
-                                displayFormats: {
-                                    minute: 'HH:mm'
-                                }
+        function calculatePotentiel(emaShort, emaLong) {
+            const difference = Math.abs(emaShort - emaLong);
+            return difference > 0.5 ? 'Fort' : difference > 0.2 ? 'Moyen' : 'Faible';
+        }
+
+        function calculateTpSl(price, signal) {
+            const tpMovement = price * (tpPercentage / 100);
+            const slMovement = price * (slPercentage / 100);
+            let tp, sl;
+
+            if (signal === 'ACHETER') {
+                tp = price + tpMovement;
+                sl = price - slMovement;
+            } else if (signal === 'VENDRE') {
+                tp = price - tpMovement;
+                sl = price + slMovement;
+            }
+
+            document.getElementById('tp').textContent = tp.toFixed(4);
+            document.getElementById('sl').textContent = sl.toFixed(4);
+        }
+
+        function updateChart(times, prices) {
+            const ctx = document.getElementById('chart').getContext('2d');
+            if (!chart) {
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: times, datasets: [{ data: prices, borderColor: 'rgba(0, 209, 178, 1)', borderWidth: 2, fill: false }] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: { unit: 'minute', displayFormats: { minute: 'HH:mm' } },
+                                title: { display: true, text: 'Heure' }
                             },
-                            title: {
-                                display: true,
-                                text: 'Heure'
-                            }
-                        },
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'Prix (USDT)'
+                            y: {
+                                title: { display: true, text: 'Prix (USDT)' }
                             }
                         }
                     }
-                }
-            });
-        } else {
-            chart.data.labels = times;
-            chart.data.datasets[0].data = prices;
-            chart.update();
+                });
+            } else {
+                chart.data.labels = times;
+                chart.data.datasets[0].data = prices;
+                chart.update();
+            }
         }
-    }
 
-    document.getElementById('pair-selector').addEventListener('change', (e) => {
-        selectedPair = e.target.value;
+        document.getElementById('pair-selector').addEventListener('change', (e) => {
+            selectedPair = e.target.value;
+            fetchPriceAndIndicators();
+        });
+
+        setInterval(fetchPriceAndIndicators, 60000);
         fetchPriceAndIndicators();
-    });
+    </script>
 
-    setInterval(fetchPriceAndIndicators, 60000);
-    fetchPriceAndIndicators();
 
-    // Publicité toutes les 4 minutes
-    setInterval(() => {
-        (adsbygoogle = window.adsbygoogle || []).push({});
-        console.log("Publicité actualisée !");
-    }, 240000);
-</script>
+
 
 </body></html>
